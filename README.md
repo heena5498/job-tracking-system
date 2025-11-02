@@ -52,22 +52,8 @@ The web interface is styled in Google Material Design, providing:
 - Responsive design and animations using Vuetify components.
 
 📦 Project Structure
-job-tracking-system/
-│
-├── backend/
-│   ├── main.py               # Cloud Function entry
-│
-├── static/
-│   ├── index.html            # Vue entry point
-│   ├── script.js
-│   ├── style.css
-│
-├── architecture/
-│   ├── diagram.png           # Cloud architecture flow
-│   └── mermaid.mmd           # Mermaid diagram for documentation
-│
-├── requirements.txt          # Python dependencies
-└── README.md                 # Project documentation
+<img width="1152" height="808" alt="image" src="https://github.com/user-attachments/assets/77f0de8f-7815-4c4b-9a3d-ebdadbaa3bc8" />
+
 
 
 ⚙️ Setup Instructions
