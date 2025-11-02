@@ -8,8 +8,8 @@ from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text
@@ -18,24 +18,18 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 import requests
 from bs4 import BeautifulSoup
 
-# ------------------------------
-# .env (optional)
-# ------------------------------
+# ---------- .env (optional) ----------
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
     pass
 
-# ------------------------------
-# FastAPI & templates
-# ------------------------------
+# ---------- FastAPI ----------
 app = FastAPI(title="JobWatch Local")
 templates = Jinja2Templates(directory="templates")
 
-# ------------------------------
-# SQLite / SQLAlchemy
-# ------------------------------
+# ---------- SQLite ----------
 class Base(DeclarativeBase):
     pass
 
@@ -44,8 +38,8 @@ class Company(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), unique=True, nullable=False)
     list_url = Column(Text, nullable=False)
-    role_keywords = Column(Text, nullable=True)   # comma-separated e.g. "software,developer,engineer"
-    job_link_regex = Column(Text, nullable=True)  # optional; for Amazon keep empty (we normalize)
+    role_keywords = Column(Text, nullable=True)   # "software,developer,engineer"
+    job_link_regex = Column(Text, nullable=True)  # unused for Amazon
     max_age_days = Column(Integer, nullable=False, default=7)
     detail_fetch_limit = Column(Integer, nullable=False, default=40)
     active = Column(Boolean, nullable=False, default=True)
@@ -55,9 +49,7 @@ engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base.metadata.create_all(engine)
 
-# ------------------------------
-# Helpers
-# ------------------------------
+# ---------- Helpers ----------
 def parse_keywords(csv: Optional[str]) -> List[str]:
     if not csv:
         return []
@@ -67,9 +59,7 @@ def origin_from(url: str) -> str:
     p = urlparse(url)
     return f"{p.scheme}://{p.netloc}"
 
-# ------------------------------
-# Date parsing helpers
-# ------------------------------
+# ---------- Date parsing ----------
 MONTH_INDEX = {
     "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
     "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
@@ -94,42 +84,35 @@ def parse_possible_date(text: str):
         return None, None
     m = ISO_DATE_RE.search(text)
     if m:
-        try:
-            return m.group(1), datetime.strptime(m.group(1), "%Y-%m-%d")
-        except:
-            pass
+        try: return m.group(1), datetime.strptime(m.group(1), "%Y-%m-%d")
+        except: pass
     m = MONTH_NAME_DATE_RE.search(text)
     if m:
         try:
             mon = MONTH_INDEX[m.group(1).lower()]
             return m.group(0), datetime(int(m.group(3)), mon, int(m.group(2)))
-        except:
-            pass
+        except: pass
     m = DATE_RE.search(text)
     if m:
-        try:
-            return m.group(1), datetime.strptime(m.group(1), "%m/%d/%Y")
-        except:
-            pass
+        try: return m.group(1), datetime.strptime(m.group(1), "%m/%d/%Y")
+        except: pass
     m = RELATIVE_RE.search(text)
     if m:
         n = int(m.group(1)); unit = m.group(2).lower()
         delta = {
             "hour": timedelta(hours=n), "hours": timedelta(hours=n),
-            "day": timedelta(days=n), "days": timedelta(days=n),
+            "day": timedelta(days=n),   "days": timedelta(days=n),
             "week": timedelta(weeks=n), "weeks": timedelta(weeks=n),
             "month": timedelta(days=30*n), "months": timedelta(days=30*n),
         }[unit]
         return m.group(0), datetime.utcnow() - delta
     return None, None
 
-# ------------------------------
-# Amazon-specific normalization/session
-# ------------------------------
+# ---------- Amazon scraping ----------
 HTTP_TIMEOUT = 30
 AMAZON_BASE = "https://www.amazon.jobs/en/"
 AMAZON_ROOT = "https://www.amazon.jobs"
-JOB_PATH_RE = re.compile(r"^(/en)?/jobs/")  # "/en/jobs/..." or "/jobs/..."
+JOB_PATH_RE = re.compile(r"^(/en)?/jobs/")
 
 def normalize_amazon_link(link: str) -> str:
     if not link:
@@ -138,7 +121,7 @@ def normalize_amazon_link(link: str) -> str:
     if link.startswith("http"):
         if "amazon.jobs" in link and "/jobs/" in link:
             return link
-        return ""  # reject account.amazon.com etc.
+        return ""
     if JOB_PATH_RE.search(link):
         return urljoin(AMAZON_ROOT, link)
     return ""
@@ -156,14 +139,11 @@ def make_amazon_session() -> requests.Session:
         "Cache-Control": "no-cache", "Pragma": "no-cache",
     })
     try:
-        s.get(AMAZON_BASE, timeout=HTTP_TIMEOUT)  # warm cookies
+        s.get(AMAZON_BASE, timeout=HTTP_TIMEOUT)
     except Exception:
         pass
     return s
 
-# ------------------------------
-# Amazon scrape (your working logic, param-ized)
-# ------------------------------
 def try_amazon_json(s: requests.Session, role_keywords: List[str]) -> List[Dict[str, Any]]:
     candidates = [
         ("https://www.amazon.jobs/en/search.json",
@@ -343,14 +323,14 @@ def fetch_amazon_jobs(role_keywords: List[str], max_age_days: int, detail_fetch_
     jobs = filter_by_age(jobs, max_age_days)
     return jobs
 
-# ------------------------------
-# Email
-# ------------------------------
+# ---------- Email ----------
 def send_email_html(recipient: str, subject: str, html: str):
+    import smtplib, ssl
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
     smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))  # 587 = STARTTLS, 465 = SSL
+
     if not smtp_user or not smtp_pass:
         raise RuntimeError("Missing SMTP_USER/SMTP_PASS env vars")
 
@@ -362,10 +342,26 @@ def send_email_html(recipient: str, subject: str, html: str):
     msg.add_alternative(html, subtype="html")
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(smtp_host, smtp_port) as s:
-        s.starttls(context=ctx)
-        s.login(smtp_user, smtp_pass.replace(" ", ""))
-        s.send_message(msg)
+    try:
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ctx) as s:
+                s.login(smtp_user, smtp_pass.replace(" ", ""))
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as s:
+                s.ehlo()
+                s.starttls(context=ctx)
+                s.ehlo()
+                s.login(smtp_user, smtp_pass.replace(" ", ""))
+                s.send_message(msg)
+    except smtplib.SMTPAuthenticationError as e:
+        # Most common Gmail issue: using account password instead of App Password
+        raise RuntimeError(
+            "SMTP auth failed. If you use Gmail, enable 2-Step Verification and use a 16-char App Password."
+        ) from e
+    except smtplib.SMTPException as e:
+        raise RuntimeError(f"SMTP error: {type(e).__name__}: {e}") from e
+
 
 def render_email(company_name: str, role_keywords: List[str], max_age_days: int, jobs: List[Dict[str, Any]]) -> str:
     if jobs:
@@ -390,62 +386,56 @@ def render_email(company_name: str, role_keywords: List[str], max_age_days: int,
         html = f"<h2>No recent matches (≤ {max_age_days} days) for {company_name}</h2>"
     return html
 
-# ------------------------------
-# Routes
-# ------------------------------
+# ---------- Routes ----------
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    db = SessionLocal()
-    companies = db.query(Company).order_by(Company.id.desc()).all()
-    return templates.TemplateResponse("index.html", {"request": request, "companies": companies})
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/companies")
 def list_companies():
     db = SessionLocal()
     data = [
         {
-            "id": c.id,
-            "name": c.name,
-            "list_url": c.list_url,
-            "role_keywords": c.role_keywords,
-            "max_age_days": c.max_age_days,
-            "detail_fetch_limit": c.detail_fetch_limit,
-            "active": c.active
-        } for c in db.query(Company).order_by(Company.id.desc()).all()
+            "id": c.id, "name": c.name, "list_url": c.list_url,
+            "role_keywords": c.role_keywords, "max_age_days": c.max_age_days,
+            "detail_fetch_limit": c.detail_fetch_limit, "active": c.active
+        }
+        for c in db.query(Company).order_by(Company.id.desc()).all()
     ]
     return {"companies": data}
 
 @app.post("/companies")
-async def create_company(payload: Dict[str, Any]):
-    name = payload.get("name")
-    list_url = payload.get("list_url")
-    role_keywords = payload.get("role_keywords", "software,developer,engineer")
-    max_age_days = int(payload.get("max_age_days", 7))
-    detail_fetch_limit = int(payload.get("detail_fetch_limit", 40))
+def create_company(payload: Dict[str, Any]):
+    name = payload.get("name") or payload.get("company")
+    list_url = payload.get("list_url") or payload.get("careers")
+    role_keywords = payload.get("role_keywords") or payload.get("keywords") or "software,developer,engineer"
+    max_age_days = int(payload.get("max_age_days") or payload.get("post_days") or payload.get("postdays") or 7)
+    detail_fetch_limit = int(payload.get("detail_fetch_limit") or 40)
     active = bool(payload.get("active", True))
 
     if not name or not list_url:
-        raise HTTPException(status_code=400, detail="name and list_url are required")
+        raise HTTPException(status_code=400, detail="name/company and list_url/careers are required")
 
     db = SessionLocal()
     if db.query(Company).filter(Company.name == name).first():
         raise HTTPException(status_code=409, detail="Company with this name already exists")
+
     c = Company(
-        name=name,
-        list_url=list_url,
-        role_keywords=role_keywords,
-        job_link_regex=None,
-        max_age_days=max_age_days,
-        detail_fetch_limit=detail_fetch_limit,
-        active=active
+        name=name, list_url=list_url, role_keywords=role_keywords,
+        job_link_regex=None, max_age_days=max_age_days,
+        detail_fetch_limit=detail_fetch_limit, active=active
     )
-    db.add(c)
-    db.commit()
+    db.add(c); db.commit()
     return {"ok": True, "id": c.id}
 
+from fastapi import Body
+
 @app.post("/run/{company_id}")
-def run_company(company_id: int):
-    """Runs the scraper for a single company. For now, Amazon-only; others return a message."""
+def run_company(
+    company_id: int,
+    dry_run: bool = Query(False),
+    payload: dict | None = Body(None)   # <- allow JSON body
+):
     db = SessionLocal()
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
@@ -455,21 +445,44 @@ def run_company(company_id: int):
     role_keys = parse_keywords(c.role_keywords)
 
     if "amazon.jobs" not in host:
-        # We only wired Amazon scraper for now
         return {"ok": True, "company": c.name, "ran": False,
                 "reason": "Only Amazon is supported in this local prototype."}
 
     jobs = fetch_amazon_jobs(role_keys, c.max_age_days, c.detail_fetch_limit)
 
-    recipient = os.getenv("RECIPIENT_EMAIL")
+    if dry_run:
+        return {"ok": True, "company": c.name, "count": len(jobs), "jobs": jobs}
+
+    # NEW: take from UI; fall back to env if not supplied
+    recipient = (payload or {}).get("recipient_email") or os.getenv("RECIPIENT_EMAIL")
     if not recipient:
-        raise HTTPException(status_code=500, detail="RECIPIENT_EMAIL env var missing")
+        raise HTTPException(status_code=400, detail="recipient_email is required (or set RECIPIENT_EMAIL)")
 
     html = render_email(c.name, role_keys, c.max_age_days, jobs)
     subject = f"[JobWatch Local] {c.name} roles (≤{c.max_age_days}d)"
     try:
         send_email_html(recipient, subject, html)
     except Exception as e:
+        # Bubble up clear error to the front-end
         raise HTTPException(status_code=500, detail=f"Email send failed: {e}")
 
     return {"ok": True, "company": c.name, "count": len(jobs)}
+
+
+
+@app.delete("/companies/{company_id}")
+def delete_company(company_id: int):
+    db = SessionLocal()
+    c = db.query(Company).filter(Company.id == company_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Company not found")
+    db.delete(c)
+    db.commit()
+    return {"ok": True}
+
+@app.post("/companies/reset")
+def reset_companies():
+    db = SessionLocal()
+    db.query(Company).delete()
+    db.commit()
+    return {"ok": True}
