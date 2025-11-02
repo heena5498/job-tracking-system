@@ -3,60 +3,138 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HustleHUB – Login & Company Setup</title>
+  <title>HustleHUB – Web App</title>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Material+Symbols+Outlined" rel="stylesheet">
+  <link rel="icon" href="https://www.google.com/favicon.ico" />
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <div>
-      <span>H</span><span>u</span><span>s</span><span>t</span><span>l</span><span>e</span><span>HUB</span>
+  <header class="appbar elevation">
+    <div class="brand">
+      <span class="h1">H</span><span class="h2">u</span><span class="h3">s</span><span class="h4">t</span><span class="h5">l</span><span class="h6">e</span><span class="h7">HUB</span>
     </div>
+    <div class="search">
+      <span class="material-symbols-outlined">search</span>
+      <input id="globalSearch" placeholder="Search jobs, companies…" />
+    </div>
+    <nav class="actions">
+      <button class="icon-btn" data-view="dashboard" title="Dashboard">
+        <span class="material-symbols-outlined">home</span>
+      </button>
+      <button class="icon-btn" data-view="companies" title="Companies">
+        <span class="material-symbols-outlined">business</span>
+      </button>
+      <button class="icon-btn" data-view="settings" title="Settings">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+      <button class="icon-btn" title="Notifications">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <div class="avatar" title="Profile">RS</div>
+    </nav>
+    <div id="topProgress" class="progress"></div>
   </header>
-
-  <main class="container">
-    <form class="card" onsubmit="handleSubmit(event)">
-      <h2>Welcome to HustleHUB</h2>
-
-      <div class="section-title">Login</div>
-      <label for="email">Email</label>
-      <input type="email" id="email" placeholder="Enter your email" required>
-
-      <label for="password">Password</label>
-      <input type="password" id="password" placeholder="Enter your password" required>
-
-      <button type="button" class="btn" onclick="alert('Login successful!')">Sign In</button>
-
-      <div class="divider"></div>
-
-      <div class="section-title">Company Details</div>
-
-      <label for="company">Company Name</label>
-      <input type="text" id="company" placeholder="Enter company name" required>
-
-      <label for="postdays">Post Days</label>
-      <input type="number" id="postdays" placeholder="Max post age in days" required>
-
-      <label for="careers">Careers URL</label>
-      <input type="url" id="careers" placeholder="https://example.com/careers" required>
-
-      <label for="keywords">Keywords</label>
-      <input type="text" id="keywords" placeholder="e.g. software, backend, devops">
-
-      <label for="location">Location</label>
-      <input type="text" id="location" placeholder="e.g. US-Remote">
-
-      <label for="contactEmail">Contact Email</label>
-      <input type="email" id="contactEmail" placeholder="company@email.com">
-
-      <button type="submit" class="btn">Submit</button>
-    </form>
+  <main class="layout">
+    <aside class="sidebar elevation">
+      <h3 class="sidebar-title"><span class="material-symbols-outlined">tune</span> Filters</h3>
+      <label class="field">
+        <span class="material-symbols-outlined">work</span>
+        <input id="fltRole" placeholder="Role e.g. SWE" />
+      </label>
+      <label class="field">
+        <span class="material-symbols-outlined">location_on</span>
+        <input id="fltLoc" placeholder="Location e.g. US-Remote" />
+      </label>
+      <label class="field">
+        <span class="material-symbols-outlined">schedule</span>
+        <input id="fltAge" type="number" placeholder="Max post age (days)" />
+      </label>
+      <button class="btn ripple" id="applyFilters"><span class="material-symbols-outlined left">filter_alt</span>Apply</button>
+      <button class="btn text ripple" id="clearFilters">Clear</button>
+      <div class="hint">Tip: This is a visual demo; filters apply to the local list.</div>
+    </aside>
+    <section class="content">
+      <div class="view active" id="view-dashboard">
+        <div class="cards">
+          <div class="card elevation fade-up">
+            <h2 class="card-title"><span class="material-symbols-outlined left">lock</span>Login</h2>
+            <form id="loginForm">
+              <label class="field">
+                <span class="material-symbols-outlined">mail</span>
+                <input type="email" id="email" placeholder="Email address" required autocomplete="username" />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">key</span>
+                <input type="password" id="password" placeholder="Password" required autocomplete="current-password" />
+              </label>
+              <button type="button" class="btn ripple" id="signInBtn"><span class="material-symbols-outlined left">login</span>Sign In</button>
+            </form>
+          </div>
+          <div class="card elevation fade-up">
+            <h2 class="card-title"><span class="material-symbols-outlined left">apartment</span>Add Company Details</h2>
+            <form id="companyForm">
+              <label class="field">
+                <span class="material-symbols-outlined">business</span>
+                <input type="text" id="company" placeholder="Company name" required />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">schedule</span>
+                <input type="number" id="postdays" placeholder="Max post age (days)" required />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">public</span>
+                <input type="url" id="careers" placeholder="Careers page URL" required />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">sell</span>
+                <input type="text" id="keywords" placeholder="Keywords (e.g., software, backend)" />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">pin_drop</span>
+                <input type="text" id="location" placeholder="Location (e.g., US-Remote)" />
+              </label>
+              <label class="field">
+                <span class="material-symbols-outlined">alternate_email</span>
+                <input type="email" id="contactEmail" placeholder="Contact email for alerts" />
+              </label>
+              <div class="row">
+                <button type="submit" class="btn green ripple">
+                  <span class="material-symbols-outlined left">save</span>Submit
+                </button>
+                <button type="button" class="btn text ripple" id="loadExample">
+                  <span class="material-symbols-outlined left">auto_fix_high</span>Example
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div class="card elevation fade-up">
+          <h2 class="card-title"><span class="material-symbols-outlined left">list_alt</span>Latest Jobs</h2>
+          <div id="jobsList" class="jobs"></div>
+          <div class="hint">Reads from local <code>jobs.json</code> if present; otherwise shows demo items.</div>
+        </div>
+      </div>
+      <div class="view" id="view-companies">
+        <div class="card elevation fade-up">
+          <h2 class="card-title"><span class="material-symbols-outlined left">business</span>Companies</h2>
+          <div id="companiesList" class="table"></div>
+          <div class="hint">Data is saved to <code>localStorage</code> in this demo.</div>
+        </div>
+      </div>
+      <div class="view" id="view-settings">
+        <div class="card elevation fade-up">
+          <h2 class="card-title"><span class="material-symbols-outlined left">settings</span>Settings</h2>
+          <label class="switch">
+            <input type="checkbox" id="darkModeToggle">
+            <span class="slider"></span>
+            <span class="switch-label">Dark mode</span>
+          </label>
+          <div class="hint">Google-like dark mode toggle with smooth transition.</div>
+        </div>
+      </div>
+    </section>
   </main>
-
-  <footer>
-    © 2025 HustleHUB • Google-inspired Design (Roboto + Material)
-  </footer>
-
+  <div id="snackbar" class="snackbar"></div>
   <script src="script.js"></script>
 </body>
 </html>
