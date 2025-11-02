@@ -52,7 +52,7 @@ The web interface is styled in Google Material Design, providing:
 - Responsive design and animations using Vuetify components.
 
 📦 Project Structure
-<img width="1152" height="808" alt="image" src="https://github.com/user-attachments/assets/77f0de8f-7815-4c4b-9a3d-ebdadbaa3bc8" />
+<img width="800" height="400" alt="image" src="https://github.com/user-attachments/assets/77f0de8f-7815-4c4b-9a3d-ebdadbaa3bc8" />
 
 
 
