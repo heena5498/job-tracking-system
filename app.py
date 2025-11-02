@@ -70,13 +70,14 @@ DATE_RE = re.compile(r"\b(\d{1,2}/\d{1,2}/\d{4})\b")
 ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 MONTH_NAME_DATE_RE = re.compile(
     r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
-    r"Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+"
-    r"(\d{1,2}),\s*(\d{4})\b", re.I
+    r"Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?)\s+(\d{1,2}),\s*(\d{4})\b",
+    re.I,
 )
 RELATIVE_RE = re.compile(r"(\d+)\s+(day|days|hour|hours|week|weeks|month|months)\s+ago", re.I)
 UPDATED_LABEL_RE = re.compile(
     r"(Updated|Posted)\s*:?\s*(?P<date>(?:\d{4}-\d{2}-\d{2})|(?:\d{1,2}/\d{1,2}/\d{4})|"
-    r"(?:[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}))", re.I
+    r"(?:[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}))",
+    re.I,
 )
 
 def parse_possible_date(text: str):
@@ -84,18 +85,23 @@ def parse_possible_date(text: str):
         return None, None
     m = ISO_DATE_RE.search(text)
     if m:
-        try: return m.group(1), datetime.strptime(m.group(1), "%Y-%m-%d")
-        except: pass
+        try:
+            return m.group(1), datetime.strptime(m.group(1), "%Y-%m-%d")
+        except:
+            pass
     m = MONTH_NAME_DATE_RE.search(text)
     if m:
         try:
             mon = MONTH_INDEX[m.group(1).lower()]
             return m.group(0), datetime(int(m.group(3)), mon, int(m.group(2)))
-        except: pass
+        except:
+            pass
     m = DATE_RE.search(text)
     if m:
-        try: return m.group(1), datetime.strptime(m.group(1), "%m/%d/%Y")
-        except: pass
+        try:
+            return m.group(1), datetime.strptime(m.group(1), "%m/%d/%Y")
+        except:
+            pass
     m = RELATIVE_RE.search(text)
     if m:
         n = int(m.group(1)); unit = m.group(2).lower()
@@ -349,19 +355,13 @@ def send_email_html(recipient: str, subject: str, html: str):
                 s.send_message(msg)
         else:
             with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as s:
-                s.ehlo()
-                s.starttls(context=ctx)
-                s.ehlo()
+                s.ehlo(); s.starttls(context=ctx); s.ehlo()
                 s.login(smtp_user, smtp_pass.replace(" ", ""))
                 s.send_message(msg)
     except smtplib.SMTPAuthenticationError as e:
-        # Most common Gmail issue: using account password instead of App Password
-        raise RuntimeError(
-            "SMTP auth failed. If you use Gmail, enable 2-Step Verification and use a 16-char App Password."
-        ) from e
+        raise RuntimeError("SMTP auth failed. If you use Gmail, enable 2-Step Verification and use a 16-char App Password.") from e
     except smtplib.SMTPException as e:
         raise RuntimeError(f"SMTP error: {type(e).__name__}: {e}") from e
-
 
 def render_email(company_name: str, role_keywords: List[str], max_age_days: int, jobs: List[Dict[str, Any]]) -> str:
     if jobs:
@@ -370,8 +370,7 @@ def render_email(company_name: str, role_keywords: List[str], max_age_days: int,
             f'<td><a href="{j["link"]}">{j["title"]}</a></td>'
             f'<td>{j.get("location","")}</td>'
             f'<td>{j.get("posted_text","")}</td>'
-            f'</tr>'
-            for j in jobs
+            f'</tr>' for j in jobs
         )
         html = f"""
         <h2>{company_name} careers (last {max_age_days} days)</h2>
@@ -428,14 +427,8 @@ def create_company(payload: Dict[str, Any]):
     db.add(c); db.commit()
     return {"ok": True, "id": c.id}
 
-from fastapi import Body
-
 @app.post("/run/{company_id}")
-def run_company(
-    company_id: int,
-    dry_run: bool = Query(False),
-    payload: dict | None = Body(None)   # <- allow JSON body
-):
+def run_company(company_id: int, dry_run: bool = Query(False)):
     db = SessionLocal()
     c = db.query(Company).filter(Company.id == company_id).first()
     if not c:
@@ -453,22 +446,19 @@ def run_company(
     if dry_run:
         return {"ok": True, "company": c.name, "count": len(jobs), "jobs": jobs}
 
-    # NEW: take from UI; fall back to env if not supplied
-    recipient = (payload or {}).get("recipient_email") or os.getenv("RECIPIENT_EMAIL")
+    # Env-only recipient
+    recipient = os.getenv("RECIPIENT_EMAIL")
     if not recipient:
-        raise HTTPException(status_code=400, detail="recipient_email is required (or set RECIPIENT_EMAIL)")
+        raise HTTPException(status_code=500, detail="RECIPIENT_EMAIL env var missing")
 
     html = render_email(c.name, role_keys, c.max_age_days, jobs)
     subject = f"[JobWatch Local] {c.name} roles (≤{c.max_age_days}d)"
     try:
         send_email_html(recipient, subject, html)
     except Exception as e:
-        # Bubble up clear error to the front-end
         raise HTTPException(status_code=500, detail=f"Email send failed: {e}")
 
     return {"ok": True, "company": c.name, "count": len(jobs)}
-
-
 
 @app.delete("/companies/{company_id}")
 def delete_company(company_id: int):
